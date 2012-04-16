@@ -157,6 +157,130 @@ namespace Tagger
         }
     }
 
+    class DOMDocumentRecursiceIterator implements  \RecursiveIterator, \Countable
+    {
+        /**
+         * @var \DOMNodeList
+         */
+        protected $list;
+
+        protected $count;
+
+        protected $position;
+
+        public function __construct(\DOMNodeList $list)
+        {
+            $this->list = $list;
+            $this->count = $list->length;
+            $this->position = 0;
+        }
+
+        /**
+         * @return \DOMNode
+         */
+        public function current()
+        {
+            return $this->list->item($this->position);
+        }
+
+        /**
+         * (PHP 5 &gt;= 5.1.0)<br/>
+         * Return the key of the current element
+         * @link http://php.net/manual/en/iterator.key.php
+         * @return scalar scalar on success, integer
+         * 0 on failure.
+         */
+        public function key()
+        {
+            return $this->position;
+        }
+
+        /**
+         * (PHP 5 &gt;= 5.1.0)<br/>
+         * Move forward to next element
+         * @link http://php.net/manual/en/iterator.next.php
+         * @return void Any returned value is ignored.
+         */
+        public function next()
+        {
+            ++$this->position;
+        }
+
+        /**
+         * (PHP 5 &gt;= 5.1.0)<br/>
+         * Rewind the Iterator to the first element
+         * @link http://php.net/manual/en/iterator.rewind.php
+         * @return void Any returned value is ignored.
+         */
+        public function rewind()
+        {
+            $this->position = 0;
+//            $this->node = $this->first;
+            //$this->node = $this->node->nextSibling->firstChild;
+        }
+
+        public function valid()
+        {
+            return $this->count > $this->position;
+        }
+
+
+        /**
+         * (PHP 5 &gt;= 5.1.0)<br/>
+         * Returns an iterator for the current entry.
+         * @link http://php.net/manual/en/recursiveiterator.getchildren.php
+         * @return RecursiveIterator An iterator for the current entry.
+         */
+        public function getChildren()
+        {
+            return new self($this->current()->childNodes);
+        }
+
+        /**
+         * (PHP 5 &gt;= 5.1.0)<br/>
+         * Returns if an iterator can be created fot the current entry.
+         * @link http://php.net/manual/en/recursiveiterator.haschildren.php
+         * @return bool true if the current entry can be iterated over, otherwise returns false.
+         */
+        public function hasChildren()
+        {
+            return $this->current()->hasChildNodes();
+        }
+
+        /**
+         * (PHP 5 &gt;= 5.1.0)<br/>
+         * Count elements of an object
+         * @link http://php.net/manual/en/countable.count.php
+         * @return int The custom count as an integer.
+         * </p>
+         * <p>
+         * The return value is cast to an integer.
+         */
+        public function count()
+        {
+            return $this->count;
+        }
+    }
+
+    class CallbackFilterIterator extends \FilterIterator
+    {
+        /**
+         * @var \Closure
+         */
+        protected $callback;
+
+        public function __construct(\Iterator $iterator, \Closure $callback)
+        {
+            parent::__construct($iterator);
+            $this->callback = $callback;
+        }
+
+        public function accept()
+        {
+            return call_user_func($this->callback, $this->current());
+        }
+    }
+
     class Html
     {
         /**
@@ -196,12 +320,39 @@ namespace Tagger
 
             $text = new PlainText();
 
+            $it = new DOMDocumentRecursiceIterator($document->childNodes);
+            $ir = new \RecursiveIteratorIterator($it);
+
+            $ir = new CallbackFilterIterator($ir, function(\DOMNode $node) {
+                switch($node->nodeType)
+                {
+                    case XML_COMMENT_NODE:
+                    case XML_CDATA_SECTION_NODE:
+                        return false;
+
+                    default: return true;
+                }
+            });
+
+            //
+            $ir = new GrowingIterator($ir, new Strategy());
+
+
+            foreach ($ir as $i)
+            {
+//                echo $i;
+                echo $i->nodeValue . "\n";
+            }
+
+            die;
+
             $priority = $this->getPriority();
 
             $elements = $document->getElementsByTagName('*');
             foreach ($elements as /* @var $element \DOMElement */ $element)
             {
                 $tagName = trim($element->tagName);
+                var_dump($element->nodeName);
                 switch ($tagName)
                 {
 //                    case 'ul':
@@ -220,18 +371,20 @@ namespace Tagger
                     default:
 
                         $content = null;
-                        switch($tagName)
-                        {
-                            case 'img': $content = $element->getAttribute('alt'); break;
-                        }
+//                        switch($tagName)
+//                        {
+//                            case 'img': $content = $element->getAttribute('alt'); break;
+//                        }
 
-                        if ($content && !$element->childNodes->length) {
+                        if (!$content && !$element->hasChildNodes()) {
                             continue 2;
                         }
 
                         if (!$content) {
-                            $content = $element->textContent;
+                            $content = $element->nodeValue;
                         }
+
+                        echo $content . " \n";
 
                         $words = $text->retrieveTags($content);
                         $priority->addWordsForTag($this->filter($words), $tagName);
@@ -534,8 +687,8 @@ namespace Tagger
     $blackListWords = array_map('trim', $blackListWords);
     $blackListWords = array_filter($blackListWords);
 
-    $html = file_get_contents(__DIR__ . '/_data/laksa.html');
-//    $html = file_get_contents(__DIR__ . '/_data/blog.widmogrod.html');
+//    $html = file_get_contents(__DIR__ . '/_data/laksa.html');
+    $html = file_get_contents(__DIR__ . '/_data/blog.widmogrod.html');
 //    $html = file_get_contents(__DIR__ . '/_data/andredom.pl.html');
 //    $html = file_get_contents(__DIR__ . '/_data/matejko.html');
 //    $html = file_get_contents(__DIR__ . '/_data/mostowy.com.pl.html');
