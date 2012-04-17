@@ -192,7 +192,8 @@ namespace Tagger
          */
         public function key()
         {
-            return $this->position;
+            $current = $this->current();
+            return ($current instanceof \DOMText) ? $current->parentNode->tagName : $current->nodeName;
         }
 
         /**
@@ -281,24 +282,32 @@ namespace Tagger
         }
     }
 
-    class WordSplitIterator implements \RecursiveIterator
+    class WordsFromDOMNodeListRecursiveIterator implements \RecursiveIterator
     {
+        /**
+         * @var \Iterator
+         */
         protected $iterator;
 
-        public function __construct(\Iterator $iterator)
+        /**
+         * @var Strategy
+         */
+        protected $strategy;
+
+        public function __construct(\Iterator $iterator, Strategy $strategy)
         {
             $this->iterator = $iterator;
+            $this->strategy = $strategy;
         }
 
         public function current()
         {
-            return $this->iterator->current()->nodeValue;
+            return $this->strategy->createWord($this->iterator->current());
         }
 
         public function key()
         {
-            $current = $this->iterator->current();
-            return ($current instanceof \DOMText) ? $current->parentNode->tagName : $current->nodeName;
+            return $this->iterator->key();
         }
 
         public function next()
@@ -318,15 +327,206 @@ namespace Tagger
 
         public function getChildren()
         {
-            $phrase = $this->current();
-            $words = explode(' ', $phrase);
-            return new \RecursiveArrayIterator($words);
+            $words = $this->strategy->extractWords($this->iterator->current());
+            return new WordsFromDOMNodeRecursiveIterator($words);
         }
 
         public function hasChildren()
         {
-            $phrase = $this->current();
-            return false !== strpos($phrase, ' ');
+            return $this->strategy->canExtractWords($this->iterator->current());
+        }
+    }
+
+    interface Strategy
+    {
+        public function canExtractWords($value);
+        public function extractWords($value);
+        public function createWord($value);
+    }
+
+    class HtmlStrategy implements Strategy
+    {
+        const WORD_DELIMETER = '/[\s,]+/';
+//        const WORD_DELIMETER = ' ';
+
+        protected $priority;
+
+        public function __construct(HtmlPriority $priority)
+        {
+            $this->priority = $priority;
+        }
+
+        public function canExtractWords($value)
+        {
+            if (!$value instanceof \DOMNode) {
+                return false;
+            }
+
+            /** @var $value \DOMNode */
+            $phrase = $value->nodeValue;
+            $phrase = trim($phrase);
+            if (empty($phrase)) {
+                return false;
+            }
+
+            return (false !== preg_match(self::WORD_DELIMETER, $phrase));
+//            return (false !== strpos($phrase, self::WORD_DELIMETER));
+        }
+
+        public function extractWords($value)
+        {
+            $phrase = $value->nodeValue;
+            $phrase = trim($phrase);
+
+            $words = preg_split(self::WORD_DELIMETER, $phrase);
+//            $words = explode(self::WORD_DELIMETER, $phrase);
+
+            $words = array_filter($words, function($value){
+                return preg_replace('/([^\pL\pN]+)/ui', null, $value);
+            });
+            $words = array_map(array($this, 'filterword'), $words);
+
+            $basePriority = $this->priority->getPriority($value);
+
+            $result = array();
+            foreach ($words as $word)
+            {
+                $word = $this->createWord($word);
+                $word->setPriority($this->priority->getPriority($word) + $basePriority);
+
+                $result[] = $word;
+            }
+            return $result;
+        }
+
+        protected function striptags($string)
+        {
+            $string = preg_replace('#(<(style|script)[^>]*>[^<]*(</style>|</script>))#i', ' ', $string);
+            $string = strip_tags($string);
+            return $string;
+        }
+
+        protected function filterword($string)
+        {
+            $string = preg_replace('/([^\pL\pN]+)/ui', ' ', $string);
+            $string = trim($string);
+            $string = mb_strtolower($string);
+            return $string;
+        }
+
+        public function createWord($value)
+        {
+            if ($value instanceof \DOMNode) {
+                $value = $value->nodeValue;
+            }
+
+            return new Word($value);
+        }
+    }
+
+    class WordsFromDOMNodeRecursiveIterator implements \RecursiveIterator, \Countable
+    {
+        protected $data = array();
+
+        protected $count = 0;
+
+        protected $position = 0;
+
+        public function __construct(array $data)
+        {
+            $this->data = array_values($data);
+            $this->count = count($data);
+        }
+
+        public function current()
+        {
+            return $this->data[$this->position];
+        }
+
+        public function key()
+        {
+            return $this->position;
+        }
+
+        public function next()
+        {
+            ++$this->position;
+        }
+
+        public function rewind()
+        {
+            $this->position = 0;
+        }
+
+        public function valid()
+        {
+            return $this->position < $this->count;
+        }
+
+        public function getChildren()
+        {
+            return false;
+        }
+
+        public function hasChildren()
+        {
+            return false;
+        }
+
+        public function count()
+        {
+            return $this->count;
+        }
+    }
+
+    class Word
+    {
+        protected $prev;
+
+        protected $next;
+
+        protected $word;
+
+        protected $priority;
+
+        public function __construct($word)
+        {
+            $this->word = (string) $word;
+        }
+
+        public function __toString()
+        {
+            return $this->word;
+        }
+
+        public function setPriority($priority)
+        {
+            $this->priority = $priority;
+        }
+
+        public function getPriority()
+        {
+            return $this->priority;
+        }
+
+        public function setNext(Word $next)
+        {
+            $this->next = $next;
+        }
+
+        public function getNext()
+        {
+            return $this->next;
+        }
+
+        public function setPrev(Word $prev)
+        {
+            $this->prev = $prev;
+        }
+
+        public function getPrev()
+        {
+            return $this->prev;
         }
     }
 
@@ -384,20 +584,41 @@ namespace Tagger
             });
 
             //
-            $ir = new WordSplitIterator($ir);
+            $strategy = new HtmlStrategy($this->getPriority());
+            $ir = new WordsFromDOMNodeListRecursiveIterator($ir, $strategy);
             $ir = new \RecursiveIteratorIterator($ir);
-            $ir = new CallbackFilterIterator($ir, function($current, $key){
-//                $current = ($current instanceof \DOMNode) ? $current->nodeValue : $current;
-                var_dump($key);
-                $current = trim($current);
-                return !empty($current);
+
+            $ir = new CallbackFilterIterator($ir, function($value){
+                return preg_replace('/([^\pL\pN]+)/ui', null, $value);
             });
 
-            foreach ($ir as $i)
+            $priorityQueue = new \SplPriorityQueue();
+
+            /** @var $parent Word */
+            $parent = null;
+            foreach ($ir as $k => $i)
             {
+                $priorityQueue->insert($i, $i->getPriority());
+
+                if (null !== $parent) {
+                    $parent->setNext($i);
+                }
+                $parent = $i;
+
+//                echo str_pad($k, 5);
+//                echo $i;
 //                echo ($i instanceof \DOMNode) ? $i->nodeValue : $i;
-                echo $i ." \n";
+//                echo "\n";
+
+//                echo str_pad($i->getPriority(), 5);
+//                echo $i ." \n";
 //                echo $i->nodeValue . "\n";
+            }
+
+            $priorityQueue->top();
+            foreach ($priorityQueue as $word)
+            {
+                echo $word .' '. $word->getNext() ." \n";
             }
 
             die;
@@ -634,6 +855,11 @@ namespace Tagger
 
         public function getPriority($word)
         {
+            /** @var $word \DOMNode */
+            if ($word instanceof \DOMNode) {
+                return $this->getTagNamePriority($word->parentNode->tagName);
+            }
+
             $word = mb_strtolower($word);
             if (isset($this->_blackListWords[$word])) {
                 return 0;

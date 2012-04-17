@@ -6,5 +6,7 @@ namespace Tagger;
  */
 interface Strategy
 {
-
+    public function canExtractWords($value);
+    public function extractWords($value);
+    public function createWord($value);
 }
