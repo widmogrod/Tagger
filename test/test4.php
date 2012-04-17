@@ -277,7 +277,56 @@ namespace Tagger
 
         public function accept()
         {
-            return call_user_func($this->callback, $this->current());
+            return call_user_func($this->callback, $this->current(), $this->key());
+        }
+    }
+
+    class WordSplitIterator implements \RecursiveIterator
+    {
+        protected $iterator;
+
+        public function __construct(\Iterator $iterator)
+        {
+            $this->iterator = $iterator;
+        }
+
+        public function current()
+        {
+            return $this->iterator->current()->nodeValue;
+        }
+
+        public function key()
+        {
+            $current = $this->iterator->current();
+            return ($current instanceof \DOMText) ? $current->parentNode->tagName : $current->nodeName;
+        }
+
+        public function next()
+        {
+            $this->iterator->next();
+        }
+
+        public function rewind()
+        {
+            $this->iterator->rewind();
+        }
+
+        public function valid()
+        {
+            return $this->iterator->valid();
+        }
+
+        public function getChildren()
+        {
+            $phrase = $this->current();
+            $words = explode(' ', $phrase);
+            return new \RecursiveArrayIterator($words);
+        }
+
+        public function hasChildren()
+        {
+            $phrase = $this->current();
+            return false !== strpos($phrase, ' ');
         }
     }
 
@@ -335,13 +384,20 @@ namespace Tagger
             });
 
             //
-            $ir = new GrowingIterator($ir, new Strategy());
-
+            $ir = new WordSplitIterator($ir);
+            $ir = new \RecursiveIteratorIterator($ir);
+            $ir = new CallbackFilterIterator($ir, function($current, $key){
+//                $current = ($current instanceof \DOMNode) ? $current->nodeValue : $current;
+                var_dump($key);
+                $current = trim($current);
+                return !empty($current);
+            });
 
             foreach ($ir as $i)
             {
-//                echo $i;
-                echo $i->nodeValue . "\n";
+//                echo ($i instanceof \DOMNode) ? $i->nodeValue : $i;
+                echo $i ." \n";
+//                echo $i->nodeValue . "\n";
             }
 
             die;
