@@ -192,8 +192,9 @@ namespace Tagger
          */
         public function key()
         {
-            $current = $this->current();
-            return ($current instanceof \DOMText) ? $current->parentNode->tagName : $current->nodeName;
+            return $this->position;
+//            $current = $this->current();
+//            return ($current instanceof \DOMText) ? $current->parentNode->tagName : $current->nodeName;
         }
 
         /**
@@ -294,15 +295,22 @@ namespace Tagger
          */
         protected $strategy;
 
+        protected $cached = array();
+
         public function __construct(\Iterator $iterator, Strategy $strategy)
         {
             $this->iterator = $iterator;
             $this->strategy = $strategy;
         }
 
+        /**
+         * @return Word
+         */
         public function current()
         {
-            return $this->strategy->createWord($this->iterator->current());
+            return isset($this->cached[$this->key()])
+                ? $this->cached[$this->key()]
+                : ($this->cached[$this->key()] = $this->strategy->createWord($this->iterator->current()));
         }
 
         public function key()
@@ -389,10 +397,17 @@ namespace Tagger
             $basePriority = $this->priority->getPriority($value);
 
             $result = array();
+
+//            $prev = null;
             foreach ($words as $word)
             {
                 $word = $this->createWord($word);
                 $word->setPriority($this->priority->getPriority($word) + $basePriority);
+
+//                if (null !== $prev) {
+//                    $word->setPrev($prev);
+//                }
+//                $prev = $word;
 
                 $result[] = $word;
             }
@@ -487,16 +502,19 @@ namespace Tagger
 
         protected $word;
 
+        protected $length;
+
         protected $priority;
 
         public function __construct($word)
         {
-            $this->word = (string) $word;
+            $this->word = $word;
+            $this->length = mb_strlen($word);
         }
 
         public function __toString()
         {
-            return $this->word;
+            return (string) $this->word;
         }
 
         public function setPriority($priority)
@@ -509,9 +527,13 @@ namespace Tagger
             return $this->priority;
         }
 
-        public function setNext(Word $next)
+        public function setNext(Word $next, $setPrev = true)
         {
             $this->next = $next;
+
+            if ($setPrev) {
+                $next->setPrev($this, false);
+            }
         }
 
         public function getNext()
@@ -519,14 +541,365 @@ namespace Tagger
             return $this->next;
         }
 
-        public function setPrev(Word $prev)
+        public function setPrev(Word $prev, $setNext = true)
         {
             $this->prev = $prev;
+
+            if ($setNext) {
+                $prev->setNext($this, false);
+            }
         }
 
         public function getPrev()
         {
             return $this->prev;
+        }
+
+        public function getLength()
+        {
+            return $this->length;
+        }
+    }
+
+    class WordGroup
+    {
+        protected $words = array();
+
+        protected $priority = 0;
+
+        public function getWords()
+        {
+            return $this->words;
+        }
+
+        public function __toString()
+        {
+            return (string) implode(', ', array_map('strval', $this->words));
+        }
+
+        public function getNext()
+        {}
+
+        public function getLength()
+        {
+            return $this->words[0]->getLength();
+        }
+
+        public function addWord(Word $word)
+        {
+            $this->words[] = $word;
+            $this->priority += $word->getPriority();
+        }
+
+        public function getPriority()
+        {
+            return $this->priority;
+        }
+    }
+
+    class GroupingIterator implements \Iterator
+    {
+        protected $iterator;
+
+        public function __construct(\Iterator $iterator)
+        {
+            $a = new \ArrayObject(array());
+            foreach ($iterator as $word)
+            {
+                $key = (string) $word;
+                if (!$a->offsetExists($key)) {
+                    $a->offsetSet($key, new WordGroup());
+                }
+                $a->offsetGet($key)->addWord($word);
+            }
+            $this->iterator = new \ArrayIterator($a);
+        }
+
+        /**
+         * @return Word
+         */
+        public function current()
+        {
+            return $this->iterator->current();
+        }
+
+        public function key()
+        {
+            return $this->iterator->key();
+        }
+
+        public function next()
+        {
+            $this->iterator->next();
+        }
+
+        public function rewind()
+        {
+            $this->iterator->rewind();
+        }
+
+        public function valid()
+        {
+            return $this->iterator->valid();
+        }
+    }
+
+    class ClonableIterator implements \Iterator, \Countable, \SeekableIterator
+    {
+        const CACHE_KEY = 0;
+        const CACHE_VALUE = 1;
+
+        protected $cache = array();
+        protected $count = 0;
+        protected $position = 0;
+
+        public function __construct(\Iterator $iterator)
+        {
+            foreach ($iterator as $key => $value)
+            {
+                ++$this->count;
+                $this->cache[] = array(
+                    self::CACHE_KEY => $key,
+                    self::CACHE_VALUE => $value
+                );
+            }
+        }
+
+        public function current()
+        {
+            return $this->cache[$this->position][self::CACHE_VALUE];
+        }
+
+        public function next()
+        {
+            return ++$this->position;
+        }
+
+        public function key()
+        {
+            return $this->position;
+        }
+
+        public function valid()
+        {
+            return $this->count > $this->position;
+        }
+
+        public function rewind()
+        {
+            $this->position = 0;
+        }
+
+        public function count()
+        {
+            return $this->count;
+        }
+
+        public function seek($position)
+        {
+            if (!isset($this->cache[$position])) {
+                throw new \OutOfBoundsException("invalid seek position ($position)");
+            }
+            $this->position = $position;
+        }
+
+        public function __clone()
+        {
+            //
+        }
+    }
+
+    class SimilarityIterator implements \Iterator, \Countable
+    {
+        protected $minWordLength = 3;
+
+        protected $minSimilarityPercent = 79;
+
+        protected $similarity = array();
+
+//        public function __construct(array $words)
+//        {
+//            while ($word = array_pop($words))
+//            {
+//                if (mb_strlen($word) <= $this->minWordLength) {
+//                    continue;
+//                }
+//
+//                foreach($words as $testWord)
+//                {
+//                    if ($word == $testWord) {
+//                        continue;
+//                    }
+//                    if (mb_strlen($testWord) <= $this->minWordLength) {
+//                        continue;
+//                    }
+//
+//                    similar_text($word, $testWord, $percent);
+//
+//                    if ($percent < $this->minSimilarityPercent) {
+//                        continue;
+//                    }
+//
+//                    $this->setWordSimilarTo($word, $testWord);
+//                    $this->setWordSimilarTo($testWord, $word);
+//                }
+//            }
+//        }
+
+        protected $iterator;
+
+        public function __construct(\Iterator $iterator)
+        {
+//            ini_set("zend.ze1_compatibility_mode", 0);
+            $a = new \ArrayObject(array());
+
+            $iterator = new ClonableIterator($iterator);
+            foreach ($iterator as $position => /** @var $word Word */ $word)
+            {
+                $key = (string) $word;
+                $length = $word->getLength();
+
+//                echo "$key \n";
+
+                if ($length <= $this->minWordLength) {
+                    continue;
+                }
+
+                if (!$a->offsetExists($key)) {
+                    $a->offsetSet($key, new WordGroup());
+                }
+
+                /** @var $group WordGroup */
+                $group = $a->offsetGet($key);
+                $group->addWord($word);
+
+                $it = new CallbackFilterIterator(clone $iterator, function(Word $word) use ($length, $key) {
+                    $l = $word->getLength();
+                    if ($l < 3) {
+                        return false;
+                    }
+
+                    $minDiff = 2;
+                    $diff = $l < $length ? $l : $length;
+                    $diff -= $minDiff;
+
+                    if ($diff < $minDiff) {
+                        return false;
+                    }
+                    else
+                    {
+                        $base = mb_substr($word, 0, $diff);
+                        $to = mb_substr($key, 0, $diff);
+                    }
+
+//                    var_dump(array("$base :: $to", "$word :: $key"));
+                    return $base == $to;
+                });
+
+                foreach($it as /** @var $testWord Word */ $testWord)
+                {
+                    if ((string) $word == (string) $testWord) {
+                        $group->addWord($testWord);
+                        continue;
+                    }
+
+                    similar_text((string) $word, (string) $testWord, $percent);
+
+                    if ($percent < $this->minSimilarityPercent) {
+                        continue;
+                    }
+
+                    $group->addWord($testWord);
+                }
+
+//                 var_dump((string) $group);
+            }
+            $this->iterator = new \ArrayIterator($a);
+//            var_dump($this->iterator->count());
+        }
+
+        /**
+         * @return Word
+         */
+        public function current()
+        {
+            return $this->iterator->current();
+        }
+
+        public function key()
+        {
+            return $this->iterator->key();
+        }
+
+        public function next()
+        {
+            $this->iterator->next();
+        }
+
+        public function rewind()
+        {
+            $this->iterator->rewind();
+        }
+
+        public function valid()
+        {
+            return $this->iterator->valid();
+        }
+
+        public function count()
+        {
+            return $this->iterator->count();
+        }
+
+        public function setWordSimilarTo($word, $similarWord)
+        {
+            if (!isset($this->similarity[$word])) {
+                $this->similarity[$word] = array();
+            }
+            $this->similarity[$word][$similarWord] = true;
+        }
+
+        public function getSimilarWordsTo($word, $default = array())
+        {
+            return array_key_exists($word, $this->similarity)
+                ? $this->similarity[$word]
+                : $default;
+        }
+
+        public function toArray($flatWords = false)
+        {
+            if ($flatWords)
+            {
+                $result = array();
+                foreach ($this->similarity as $word => $similarWords)
+                {
+                    $result[] = $word;
+                    $result = array_merge($result, $similarWords);
+                }
+                return $result;
+            }
+
+            return $this->similarity;
+        }
+
+        public function setMinWordLength($minWordLength)
+        {
+            $this->minWordLength = $minWordLength;
+        }
+
+        public function getMinWordLength()
+        {
+            return $this->minWordLength;
+        }
+
+        public function setMinSimilarityPercent($minSimilarityPercent)
+        {
+            $this->minSimilarityPercent = $minSimilarityPercent;
+        }
+
+        public function getMinSimilarityPercent()
+        {
+            return $this->minSimilarityPercent;
         }
     }
 
@@ -592,32 +965,21 @@ namespace Tagger
                 return preg_replace('/([^\pL\pN]+)/ui', null, $value);
             });
 
+//            $ir = new GroupingIterator($ir);
+            $ir = new SimilarityIterator($ir);
+            $ir->rewind();
+//            var_dump($ir->key(), count($ir->count()));
+//echo __LINE__ . "\n";
             $priorityQueue = new \SplPriorityQueue();
-
-            /** @var $parent Word */
-            $parent = null;
-            foreach ($ir as $k => $i)
-            {
-                $priorityQueue->insert($i, $i->getPriority());
-
-                if (null !== $parent) {
-                    $parent->setNext($i);
-                }
-                $parent = $i;
-
-//                echo str_pad($k, 5);
-//                echo $i;
-//                echo ($i instanceof \DOMNode) ? $i->nodeValue : $i;
-//                echo "\n";
-
-//                echo str_pad($i->getPriority(), 5);
-//                echo $i ." \n";
-//                echo $i->nodeValue . "\n";
+            foreach ($ir as /** @var $word Word */ $word) {
+//                echo __LINE__ . "\n";
+//                echo $word. "\n";
+                $priorityQueue->insert($word, $word->getPriority());
             }
+//            echo __LINE__ . "\n";
 
-            $priorityQueue->top();
-            foreach ($priorityQueue as $word)
-            {
+//            $priorityQueue->top();
+            foreach ($priorityQueue as $word) {
                 echo $word .' '. $word->getNext() ." \n";
             }
 
@@ -969,11 +1331,12 @@ namespace Tagger
     $blackListWords = array_map('trim', $blackListWords);
     $blackListWords = array_filter($blackListWords);
 
-//    $html = file_get_contents(__DIR__ . '/_data/laksa.html');
-    $html = file_get_contents(__DIR__ . '/_data/blog.widmogrod.html');
+    $html = file_get_contents(__DIR__ . '/_data/laksa.html');
+//    $html = FILE_GET_CONTENTS(__DIR__ . '/_data/blog.widmogrod.html');
 //    $html = file_get_contents(__DIR__ . '/_data/andredom.pl.html');
-//    $html = file_get_contents(__DIR__ . '/_data/matejko.html');
+//    $html = file_get_contents(__dir__ . '/_data/matejko.html');
 //    $html = file_get_contents(__DIR__ . '/_data/mostowy.com.pl.html');
+//    $html = file_get_contents(__DIR__ . '/_data/php.net.preg.match.html');
 
 
 
