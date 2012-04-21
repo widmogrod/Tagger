@@ -35,8 +35,7 @@ class DOMNodeListRecursiceIterator implements \RecursiveIterator, \Countable
 
     public function key()
     {
-        $current = $this->current();
-        return ($current instanceof \DOMText) ? $current->parentNode->tagName : $current->nodeName;
+        return $this->position;
     }
 
     public function next()

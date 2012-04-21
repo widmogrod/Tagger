@@ -28,6 +28,11 @@ class Html implements Priority
 
     public function getPriority($word)
     {
+        /** @var $word \DOMNode */
+        if ($word instanceof \DOMNode) {
+            return $this->getTagNamePriority($word->parentNode->tagName);
+        }
+
         $word = mb_strtolower($word);
         if (isset($this->_blackListWords[$word])) {
             return 0;

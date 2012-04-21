@@ -644,7 +644,7 @@ namespace Tagger
         }
     }
 
-    class ClonableIterator implements \Iterator, \Countable, \SeekableIterator
+    class CacheIterator implements \Iterator, \Countable, \SeekableIterator
     {
         const CACHE_KEY = 0;
         const CACHE_VALUE = 1;
@@ -715,51 +715,17 @@ namespace Tagger
 
         protected $minSimilarityPercent = 79;
 
-        protected $similarity = array();
-
-//        public function __construct(array $words)
-//        {
-//            while ($word = array_pop($words))
-//            {
-//                if (mb_strlen($word) <= $this->minWordLength) {
-//                    continue;
-//                }
-//
-//                foreach($words as $testWord)
-//                {
-//                    if ($word == $testWord) {
-//                        continue;
-//                    }
-//                    if (mb_strlen($testWord) <= $this->minWordLength) {
-//                        continue;
-//                    }
-//
-//                    similar_text($word, $testWord, $percent);
-//
-//                    if ($percent < $this->minSimilarityPercent) {
-//                        continue;
-//                    }
-//
-//                    $this->setWordSimilarTo($word, $testWord);
-//                    $this->setWordSimilarTo($testWord, $word);
-//                }
-//            }
-//        }
-
         protected $iterator;
 
         public function __construct(\Iterator $iterator)
         {
-//            ini_set("zend.ze1_compatibility_mode", 0);
             $a = new \ArrayObject(array());
 
-            $iterator = new ClonableIterator($iterator);
+            $iterator = new CacheIterator($iterator);
             foreach ($iterator as $position => /** @var $word Word */ $word)
             {
                 $key = (string) $word;
                 $length = $word->getLength();
-
-//                echo "$key \n";
 
                 if ($length <= $this->minWordLength) {
                     continue;
@@ -773,33 +739,27 @@ namespace Tagger
                 $group = $a->offsetGet($key);
                 $group->addWord($word);
 
-                $it = new CallbackFilterIterator(clone $iterator, function(Word $word) use ($length, $key) {
-                    $l = $word->getLength();
-                    if ($l < 3) {
-                        return false;
-                    }
-
-                    $minDiff = 2;
-                    $diff = $l < $length ? $l : $length;
-                    $diff -= $minDiff;
-
-                    if ($diff < $minDiff) {
-                        return false;
-                    }
-                    else
+                $similarityIterator = new CallbackFilterIterator(
+                    $iterator,
+                    function(Word $current) use ($word)
                     {
-                        $base = mb_substr($word, 0, $diff);
-                        $to = mb_substr($key, 0, $diff);
+                        if ($current == $word) {
+                            return false;
+                        }
+
+                        $baseLength = $word->getLength();
+                        $currentLength = $current->getLength();
+
+                        $minLength = $currentLength < $baseLength ? $currentLength : $baseLength;
+                        $toLength = $minLength;
+
+                        return mb_substr($current, 0, $toLength) == mb_substr($word, 0, $toLength);
                     }
+                );
 
-//                    var_dump(array("$base :: $to", "$word :: $key"));
-                    return $base == $to;
-                });
-
-                foreach($it as /** @var $testWord Word */ $testWord)
+                foreach($similarityIterator as /** @var $testWord Word */ $testWord)
                 {
                     if ((string) $word == (string) $testWord) {
-                        $group->addWord($testWord);
                         continue;
                     }
 
@@ -812,10 +772,9 @@ namespace Tagger
                     $group->addWord($testWord);
                 }
 
-//                 var_dump((string) $group);
+                $iterator->seek($position);
             }
-            $this->iterator = new \ArrayIterator($a);
-//            var_dump($this->iterator->count());
+            $this->iterator = $a->getIterator();
         }
 
         /**
@@ -849,57 +808,6 @@ namespace Tagger
         public function count()
         {
             return $this->iterator->count();
-        }
-
-        public function setWordSimilarTo($word, $similarWord)
-        {
-            if (!isset($this->similarity[$word])) {
-                $this->similarity[$word] = array();
-            }
-            $this->similarity[$word][$similarWord] = true;
-        }
-
-        public function getSimilarWordsTo($word, $default = array())
-        {
-            return array_key_exists($word, $this->similarity)
-                ? $this->similarity[$word]
-                : $default;
-        }
-
-        public function toArray($flatWords = false)
-        {
-            if ($flatWords)
-            {
-                $result = array();
-                foreach ($this->similarity as $word => $similarWords)
-                {
-                    $result[] = $word;
-                    $result = array_merge($result, $similarWords);
-                }
-                return $result;
-            }
-
-            return $this->similarity;
-        }
-
-        public function setMinWordLength($minWordLength)
-        {
-            $this->minWordLength = $minWordLength;
-        }
-
-        public function getMinWordLength()
-        {
-            return $this->minWordLength;
-        }
-
-        public function setMinSimilarityPercent($minSimilarityPercent)
-        {
-            $this->minSimilarityPercent = $minSimilarityPercent;
-        }
-
-        public function getMinSimilarityPercent()
-        {
-            return $this->minSimilarityPercent;
         }
     }
 
@@ -967,18 +875,11 @@ namespace Tagger
 
 //            $ir = new GroupingIterator($ir);
             $ir = new SimilarityIterator($ir);
-            $ir->rewind();
-//            var_dump($ir->key(), count($ir->count()));
-//echo __LINE__ . "\n";
+
             $priorityQueue = new \SplPriorityQueue();
             foreach ($ir as /** @var $word Word */ $word) {
-//                echo __LINE__ . "\n";
-//                echo $word. "\n";
                 $priorityQueue->insert($word, $word->getPriority());
             }
-//            echo __LINE__ . "\n";
-
-//            $priorityQueue->top();
             foreach ($priorityQueue as $word) {
                 echo $word .' '. $word->getNext() ." \n";
             }
