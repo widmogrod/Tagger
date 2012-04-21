@@ -1,13 +1,11 @@
 <?php
 namespace Tagger\Word;
 
-use Tagger\Word;
-
 /**
  * @author gabriel
  */
 
-class Null implements Word
+class Null extends Word
 {
     public function __construct($word)
     {}

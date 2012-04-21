@@ -15,4 +15,12 @@ interface Word
     public function setPriority($priority);
 
     public function getPriority();
+
+    public function setPrev(Word $word);
+
+    public function getPrev();
+
+    public function setNext(Word $word);
+
+    public function getNext();
 }

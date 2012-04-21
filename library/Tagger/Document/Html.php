@@ -2,6 +2,7 @@
 namespace Tagger\Document;
 
 use Tagger\Document,
+    Tagger\Word,
     Tagger\Priority as Priority,
     Tagger\Strategy as Strategy,
     Tagger\Std as Std,
@@ -68,7 +69,20 @@ class Html implements Document
         });
 
         $iterator = new Html\Extractor($iterator, $this->getStrategy());
-        return $this->wordList = new \RecursiveIteratorIterator($iterator);
+        $iterator = new \RecursiveIteratorIterator($iterator);
+
+        $iterator = new Std\CallbackFilterIterator($iterator, function(Word $word){
+            return $word->getLength() > 0;
+        });
+
+        /**
+         * CacheIterator is particulary important.
+         */
+        $iterator = new Std\CacheIterator($iterator);
+        $iterator = new Std\NextIterator($iterator);
+
+        $iterator = new Std\WordPrevNextInitIterator($iterator);
+        return $this->wordList = $iterator;
     }
 
     protected function getDocument()
@@ -111,7 +125,7 @@ class Html implements Document
     {
         if (null === $this->priority)
         {
-            $this->priority = new Priority\Html();
+            $this->priority = new Priority\None();
         }
         return $this->priority;
     }

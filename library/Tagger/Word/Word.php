@@ -10,6 +10,8 @@ use Tagger\Word as WordInterface;
 class Word implements WordInterface
 {
     protected $word;
+    protected $prev;
+    protected $next;
     protected $length;
     protected $priority;
 
@@ -37,5 +39,42 @@ class Word implements WordInterface
     public function getPriority()
     {
         return $this->priority;
+    }
+
+    public function setPrev(WordInterface $word, $connect = true)
+    {
+//        var_dump('setPrev');
+        $this->prev = $word;
+
+        if ($connect) {
+            $word->setNext($this, false);
+        }
+    }
+
+    public function getPrev()
+    {
+        if (null === $this->prev) {
+//            var_dump('getPrev::null');
+            $this->setPrev(new Null(null));
+        }
+        return $this->prev;
+    }
+
+    public function setNext(WordInterface $word, $connect = true)
+    {
+//        var_dump('setNext');
+        $this->next = $word;
+        if ($connect) {
+            $word->setPrev($this, false);
+        }
+    }
+
+    public function getNext()
+    {
+        if (null === $this->next) {
+//            var_dump('getNext::null');
+            $this->setNext(new Null(null));
+        }
+        return $this->next;
     }
 }

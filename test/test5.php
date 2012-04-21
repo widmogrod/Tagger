@@ -56,8 +56,8 @@ namespace Tagger
     $document->setPriority($priority);
     $words = $document->getWordsList();
 
-    foreach ($words as $key => $word) {
-        echo $key ." - ".$word ."\n";
+    foreach ($words as $key => /** @var $word Word */ $word)
+    {
+        echo str_pad($key, 3) ." - ". get_class($word) ." ". str_pad($word->getLength(), 4) ."". $word->getPrev() ." > ". $word ." > ". $word->getNext() ."\n";
     }
-
 }
