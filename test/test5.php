@@ -28,7 +28,7 @@ namespace Tagger
 
     $html = file_get_contents(__DIR__ . '/_data/laksa.html');
     //    $html = FILE_GET_CONTENTS(__DIR__ . '/_data/blog.widmogrod.html');
-    //    $html = file_get_contents(__DIR__ . '/_data/andredom.pl.html');
+//        $html = file_get_contents(__DIR__ . '/_data/andredom.pl.html');
 //        $html = file_get_contents(__dir__ . '/_data/matejko.html');
     //    $html = file_get_contents(__DIR__ . '/_data/mostowy.com.pl.html');
     //    $html = file_get_contents(__DIR__ . '/_data/php.net.preg.match.html');
@@ -56,8 +56,20 @@ namespace Tagger
     $document->setPriority($priority);
     $words = $document->getWordsList();
 
-    foreach ($words as $key => /** @var $word Word */ $word)
-    {
-        echo str_pad($key, 3) ." - ". get_class($word) ." ". str_pad($word->getLength(), 4) ."". $word->getPrev() ." > ". $word ." > ". $word->getNext() ."\n";
+//    foreach ($words as $key => /** @var $word Word */ $word) {
+//        echo str_pad($key, 3) ." - ". get_class($word) ." ". str_pad($word->getLength(), 4) ."". $word->getPrev() ." > ". $word ." > ". $word->getNext() ."\n";
+//    }
+
+//    $collector = new Collector\Same($words);
+    $collector = new Collector\Similar($words);
+    $groupedWords = $collector->getGroupedWords();
+
+    foreach ($groupedWords as $key => /** @var $group WordGroup */ $group) {
+        echo str_pad($key, 30) ." - ". implode(', ', $group->getWords()) ."\n";
     }
+
+// tokenizer
+// categorizer
+// regresion
+
 }

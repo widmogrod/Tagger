@@ -23,4 +23,8 @@ interface Word
     public function setNext(Word $word);
 
     public function getNext();
+
+    public function getHash();
+
+    public function isSame(Word $word);
 }

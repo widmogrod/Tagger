@@ -10,6 +10,7 @@ use Tagger\Word as WordInterface;
 class Word implements WordInterface
 {
     protected $word;
+    protected $hash;
     protected $prev;
     protected $next;
     protected $length;
@@ -18,12 +19,23 @@ class Word implements WordInterface
     public function __construct($word)
     {
         $this->word = $word;
+        $this->hash = mb_strtolower($word);
         $this->length = mb_strlen($word);
     }
 
     public function __toString()
     {
         return (string) $this->word;
+    }
+
+    public function isSame(WordInterface $word)
+    {
+        return $this->getHash() == $word->getHash();
+    }
+
+    public function getHash()
+    {
+        return $this->hash;
     }
 
     public function getLength()
@@ -43,9 +55,7 @@ class Word implements WordInterface
 
     public function setPrev(WordInterface $word, $connect = true)
     {
-//        var_dump('setPrev');
         $this->prev = $word;
-
         if ($connect) {
             $word->setNext($this, false);
         }
@@ -54,7 +64,6 @@ class Word implements WordInterface
     public function getPrev()
     {
         if (null === $this->prev) {
-//            var_dump('getPrev::null');
             $this->setPrev(new Null(null));
         }
         return $this->prev;
@@ -62,7 +71,6 @@ class Word implements WordInterface
 
     public function setNext(WordInterface $word, $connect = true)
     {
-//        var_dump('setNext');
         $this->next = $word;
         if ($connect) {
             $word->setPrev($this, false);
@@ -72,7 +80,6 @@ class Word implements WordInterface
     public function getNext()
     {
         if (null === $this->next) {
-//            var_dump('getNext::null');
             $this->setNext(new Null(null));
         }
         return $this->next;

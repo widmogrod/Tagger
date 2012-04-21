@@ -873,7 +873,7 @@ namespace Tagger
                 return preg_replace('/([^\pL\pN]+)/ui', null, $value);
             });
 
-//            $ir = new GroupingIterator($ir);
+            $ir = new GroupingIterator($ir);
             $ir = new SimilarityIterator($ir);
 
             $priorityQueue = new \SplPriorityQueue();
