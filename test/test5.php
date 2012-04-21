@@ -26,10 +26,10 @@ namespace Tagger
     $blackListWords = array_map('trim', $blackListWords);
     $blackListWords = array_filter($blackListWords);
 
-//    $html = file_get_contents(__DIR__ . '/_data/laksa.html');
+    $html = file_get_contents(__DIR__ . '/_data/laksa.html');
     //    $html = FILE_GET_CONTENTS(__DIR__ . '/_data/blog.widmogrod.html');
     //    $html = file_get_contents(__DIR__ . '/_data/andredom.pl.html');
-        $html = file_get_contents(__dir__ . '/_data/matejko.html');
+//        $html = file_get_contents(__dir__ . '/_data/matejko.html');
     //    $html = file_get_contents(__DIR__ . '/_data/mostowy.com.pl.html');
     //    $html = file_get_contents(__DIR__ . '/_data/php.net.preg.match.html');
 
