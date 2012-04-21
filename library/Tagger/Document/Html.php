@@ -71,7 +71,7 @@ class Html implements Document
         $iterator = new Html\Extractor($iterator, $this->getStrategy());
         $iterator = new \RecursiveIteratorIterator($iterator);
 
-        $iterator = new Std\CallbackFilterIterator($iterator, function(Word $word){
+        $iterator = new Std\CallbackFilterIterator($iterator, function(Word $word) {
             return $word->getLength() > 0;
         });
 

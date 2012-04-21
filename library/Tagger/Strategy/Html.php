@@ -39,10 +39,11 @@ class Html implements Strategy
     {
         $phrase = $value->nodeValue;
         $words = preg_split(self::WORD_DELIMETER, $phrase);
-//        $words = array_filter($words, function($value){
-//            return preg_replace('/([^\pL\pN]+)/ui', null, $value);
-//        });
+        $words = array_filter($words, function($value){
+            return preg_replace('/([^\pL\pN]+)/ui', '', $value);
+        });
         $words = array_map(array($this, 'filterword'), $words);
+
 
         $basePriority = $this->priority->getPriority($value);
         $result = array();
@@ -59,9 +60,10 @@ class Html implements Strategy
 
     protected function filterword($string)
     {
+        $string = (string) $string;
         $string = preg_replace('/[^\pL\pN]+/ui', ' ', $string);
-        $string = trim($string);
         $string = mb_strtolower($string);
+        $string = trim($string);
         return $string;
     }
 
@@ -75,6 +77,7 @@ class Html implements Strategy
         if ($value instanceof \DOMNode) {
             $value = $value->nodeValue;
         }
+        $value = trim($value);
 
         return new Word\Word($value);
     }

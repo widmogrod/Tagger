@@ -12,7 +12,7 @@ class Null extends Word
 
     public function __toString()
     {
-        return "\x0";
+        return '';
     }
 
     public function getLength()
