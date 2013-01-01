@@ -27,11 +27,11 @@ namespace Tagger
     $blackListWords = array_filter($blackListWords);
 
     $html = file_get_contents(__DIR__ . '/_data/laksa.html');
-    //    $html = FILE_GET_CONTENTS(__DIR__ . '/_data/blog.widmogrod.html');
-//        $html = file_get_contents(__DIR__ . '/_data/andredom.pl.html');
-//        $html = file_get_contents(__dir__ . '/_data/matejko.html');
-    //    $html = file_get_contents(__DIR__ . '/_data/mostowy.com.pl.html');
-    //    $html = file_get_contents(__DIR__ . '/_data/php.net.preg.match.html');
+       // $html = FILE_GET_CONTENTS(__DIR__ . '/_data/blog.widmogrod.html');
+       // $html = file_get_contents(__DIR__ . '/_data/andredom.pl.html');
+       // $html = file_get_contents(__dir__ . '/_data/matejko.html');
+       // $html = file_get_contents(__DIR__ . '/_data/mostowy.com.pl.html');
+       // $html = file_get_contents(__DIR__ . '/_data/php.net.preg.match.html');
 
     $priority = new \Tagger\Priority\Html();
     $priority->addWordsToBlackList($blackListWords);
@@ -56,16 +56,37 @@ namespace Tagger
     $document->setPriority($priority);
     $words = $document->getWordsList();
 
-//    foreach ($words as $key => /** @var $word Word */ $word) {
-//        echo str_pad($key, 3) ." - ". get_class($word) ." ". str_pad($word->getLength(), 4) ."". $word->getPrev() ." > ". $word ." > ". $word->getNext() ."\n";
-//    }
+   // foreach ($words as $key => /** @var $word Word */ $word) {
+   //     echo str_pad($key, 3) ." - ". get_class($word) ." ". str_pad($word->getLength(), 4) ."". $word->getPrev() ." > ". $word ." > ". $word->getNext() ."\n";
+   // }
 
 //    $collector = new Collector\Same($words);
     $collector = new Collector\Similar($words);
     $groupedWords = $collector->getGroupedWords();
+    
+    $limit = 10;
 
     foreach ($groupedWords as $key => /** @var $group WordGroup */ $group) {
-        echo str_pad($key, 30) ." - ". implode(', ', $group->getWords()) ."\n";
+        // echo str_pad($key, 30) ." - ". implode(', ', $group->getWords()) ."\n";
+        
+        $next = new \ArrayObject();
+        foreach ($group->getWords() as $key2 => /** @var $word Word */ $word) {
+            $next->append($word->getNext());
+        }
+        
+        $collector2 = new Collector\Similar($next->getIterator());
+        $groupedWords2 = $collector2->getGroupedWords();
+        
+        if (count($groupedWords2)) {
+            echo $group->getWords()[0]
+                    . " " 
+                    . ($groupedWords2->current()->getWords()[0]) 
+                    . "\n\n";
+        }
+        
+        if (--$limit < 0) {
+            break;
+        }
     }
 
 // tokenizer
