@@ -3,10 +3,10 @@
 Playground for the different ways of extracting keywords from website.
 Still in development phase.
 
-## Statistical aproche.
+## Statistical approach
 Simple implementation exists.
 
-## Neural net concept.
+## Neural net concept
 ### General
 Extract words from document and using "features" of words (eg DOM element in which is embedded, position in document,...)
 and use NN to find most important features of the keyword.
