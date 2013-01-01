@@ -11,7 +11,7 @@ Simple implementation exists.
 Extract words from document and using "features" of words (eg DOM element in which is embedded, position in document,...)
 and use NN to find most important features of the keyword.
 
-### Mind draft.
+### Mind draft
 
 - fetch document (web site)
 - tokenize words
@@ -22,7 +22,7 @@ and use NN to find most important features of the keyword.
  - word length
  - popularity (in context of different documents?)
 
-### Data draft.
+### Data draft
 
 ``` 
 word		 | input (word features) | output
