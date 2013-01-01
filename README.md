@@ -9,7 +9,7 @@ Simple implementation exists.
 ## Neural net concept.
 ### General
 Extract words from document and using "features" of words (eg DOM element in which is embedded, position in document,...)
-Prepara learning data...
+and use NN to find most important features of the keyword.
 
 ### Mind draft.
 
